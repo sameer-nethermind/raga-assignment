@@ -38,7 +38,6 @@ contract Launchpad is
         // Token sale parameters
         uint256 targetRaise;
         uint256 saleSupply;
-        uint256 minimumTokenAmountPurchase;
         // State tracking
         uint256 tokensSoldSoFar;
         uint256 reserveBalance;
@@ -107,9 +106,6 @@ contract Launchpad is
         $.uniswapRouter = uniswapRouter_;
         $.isFinalized = false;
 
-        $.minimumTokenAmountPurchase =
-            Math.sqrt(Math.mulDiv($.saleSupply, $.saleSupply, targetRaise_), Math.Rounding.Ceil);
-
         emit LaunchpadInitialized(address($.token), beneficiary_, uniswapRouter_, targetRaise_, $.saleSupply);
     }
 
@@ -145,9 +141,10 @@ contract Launchpad is
         return $.purchases[user];
     }
 
-    function getMinimumTokenAmountPurchase() external view returns (uint256) {
+    /// @dev Returns the minimum amount of tokens that can be purchased
+    function minTokenAmountPurchase() public view returns (uint256) {
         LaunchpadStorage storage $ = _getLaunchpadStorage();
-        return $.minimumTokenAmountPurchase;
+        return Math.sqrt(Math.mulDiv($.saleSupply, $.saleSupply, $.targetRaise), Math.Rounding.Ceil);
     }
 
     // ===============================================
@@ -239,6 +236,7 @@ contract Launchpad is
 
         // Calculate tokens to purchase
         tokenAmount = getTokenAmountForUSDC(usdcAmount);
+        if (minTokenAmountPurchase() > tokenAmount) revert AmountTooLess();
         if (tokenAmount == 0) revert InsufficientTokenAmount();
         if ($.tokensSoldSoFar + tokenAmount > $.saleSupply) revert ExceedsMaxSupply();
 
@@ -265,7 +263,7 @@ contract Launchpad is
         returns (uint256 usdcAmount)
     {
         LaunchpadStorage storage $ = _getLaunchpadStorage();
-        if ($.minimumTokenAmountPurchase > tokenAmount) revert AmountTooLess();
+        if (minTokenAmountPurchase() > tokenAmount) revert AmountTooLess();
         if ($.isFinalized) revert AlreadyFinalized();
         if (tokenAmount == 0) revert InvalidAmount();
         if ($.tokensSoldSoFar + tokenAmount > $.saleSupply) revert ExceedsMaxSupply();

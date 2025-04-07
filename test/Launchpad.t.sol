@@ -133,7 +133,7 @@ contract LaunchpadTest is Test {
 
     function testClaim() public {
         // Buy tokens first
-        uint256 purchaseAmount = launchpad.getMinimumTokenAmountPurchase();
+        uint256 purchaseAmount = launchpad.minTokenAmountPurchase();
         uint256 usdcCost = launchpad.getTokenPurchasePrice(purchaseAmount);
 
         vm.startPrank(buyer1);
