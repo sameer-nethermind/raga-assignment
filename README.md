@@ -1,66 +1,69 @@
-## Foundry
+# Raga Assignment
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+## Overview
+This contract manages a token sale for a new ERC-20 token (the Token). The sale is governed by a quadratic bonding curve that gradually increases the token price as more tokens are sold. It also reserves portions of the total token supply for different allocations (beneficiary, liquidity, platform fee).
 
-Foundry consists of:
+After the sale is complete (or paused), the owner can finalize the sale. This triggers token and USDC distributions:
 
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+1. Beneficiary receives its designated portion of tokens and some USDC.
+2. Liquidity is added to Uniswap V4.
+3. Platform can collect a fee.
 
-## Documentation
+Users who bought tokens during the sale can then call `claim()` to receive their purchased tokens.
 
-https://book.getfoundry.sh/
+## Bonding Curve Math
+A quadratic bonding curve is used here to smoothly increase the price of tokens as more tokens are bought. The contract tracks:
 
-## Usage
+* `tokensSoldSoFar`: the number of tokens already sold to investors.
+* `targetRaise`: the total amount of USDC intended to be raised across the entire bonding curve (when the entire sale supply is sold).
+* `saleSupply`: the total number of tokens available for sale.
 
-### Build
-
-```shell
-$ forge build
+### Purchase Price Calculation: `_getPrice()`
+When a user buys tokens, we compute the cost (in USDC) for the system to move from `tokensSoldSoFar → newSupply` (where `newSupply = tokensSoldSoFar + tokensBeingPurchased`). The formula is:
+```
+cost = (targetRaise) * (newSupply^2 - tokensSoldSoFar^2) / (saleSupply^2)
 ```
 
-### Test
+* `newSupply^2 - tokensSoldSoFar^2` is effectively the difference between squares (e.g. (n^2 - m^2) = (n+m)(n-m)), capturing the "area" under the quadratic curve.
 
-```shell
-$ forge test
+* `targetRaise / saleSupply^2` sets the scale so that if `saleSupply` tokens are sold, it matches targetRaise in total.
+
+### Tokens for Given USDC (getTokenAmountForUSDC)
+A user may want to spend a certain amount of USDC and see how many tokens that yields. Solving the equation inversely:
+
+```
+newSupply^2 = tokensSoldSoFar^2 + (usdcAmount * saleSupply^2 / targetRaise)
+```
+This becomes:
+```
+newSupply = sqrt( tokensSoldSoFar^2 + (usdcAmount * saleSupply^2 / targetRaise) )
+```
+The numer of tokens user gets:
+```
+tokenAmount = newSupply - tokensSoldSoFar
 ```
 
-### Format
+### USDC for Given Tokens (getTokenPurchasePrice)
+Alternatively, the user may specify exactly how many tokens they want. If `tokenAmount = newSupply - tokensSoldSoFar`, we plug this `newSupply` into `_getPrice()`. The result is the cost in USDC.
 
-```shell
-$ forge fmt
-```
+### Important external functions
+#### `buyTokens()`
+A user calls buyTokens(uint256 usdcAmount), specifying the amount of USDC they wish to spend. Internally, we compute how many tokens (tokenAmount) that USDC can buy using the quadratic bonding curve. Then:
 
-### Gas Snapshots
+1. Transfer the USDC from the user into the contract
+2. Increase tokensSoldSoFar by the corresponding tokenAmount.
+3. Increase the reserveBalance by the USDC just received.
+4. Record the purchase in purchases[msg.sender].
 
-```shell
-$ forge snapshot
-```
+#### `buyTokensForExactTokens()` - Recommended
+Alternatively, the user can call `buyTokensForExactTokens(uint256 tokenAmount)`, specifying exactly how many tokens they want. The contract calculates how much USDC that requires. This approach is MEV resistant because there is no manipulation in which user ends up getting lesser tokens than expected due to front-running. This approach is also more accurate because there is no dust residue in the calculation this way.
 
-### Anvil
+## Claiming Purchased Tokens
+Once the sale is finalized, users must call claim(address recipient)` to receive their purchased tokens. Instead of giving users the tokens right away we use this method in order to safeguard the protocol from token dumping and premature market creation.
 
-```shell
-$ anvil
-```
+* We check `purchases[msg.sender]` to see how many tokens the user has purchased.
+* If the sale is finalized, we transfer that token amount out to the specified recipient.
+* This design requires an explicit claim so that tokens are only released after the sale is confirmed to be complete. This avoids distributing tokens prematurely, giving the launchpad contract direct control over the supply until finalization.
 
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
+## Upgradeable Pattern (UUPS)
+Used the namespaced storage pattern to ensure there is absolutely no chance of storage collisions.
