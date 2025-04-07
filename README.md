@@ -3,8 +3,8 @@
 ## Overview
 This contract manages a token sale for a new ERC-20 token (the Token). The sale is governed by a quadratic bonding curve that gradually increases the token price as more tokens are sold. It also reserves portions of the total token supply for different allocations (beneficiary, liquidity, platform fee).
 > NOTE: There is another branch that has the uniswap pool creation code, that is not in the main branch because that was causing test errors that I did not fix.
-After the sale is complete (or paused), the owner can finalize the sale. This triggers token and USDC distributions:
 
+After the sale is complete (or paused), the owner can finalize the sale. This triggers token and USDC distributions:
 1. Beneficiary receives its designated portion of tokens and some USDC.
 2. Liquidity is added to Uniswap V4.
 3. Platform can collect a fee.
