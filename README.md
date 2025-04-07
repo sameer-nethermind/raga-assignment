@@ -58,6 +58,12 @@ A user calls buyTokens(uint256 usdcAmount), specifying the amount of USDC they w
 #### `buyTokensForExactTokens()` - Recommended
 Alternatively, the user can call `buyTokensForExactTokens(uint256 tokenAmount)`, specifying exactly how many tokens they want. The contract calculates how much USDC that requires. This approach is MEV resistant because there is no manipulation in which user ends up getting lesser tokens than expected due to front-running. This approach is also more accurate because there is no dust residue in the calculation this way.
 
+> NOTE: When a user is purchasing the tokens, they must buy a minimum amount that is calculated for them. This is needed so that we don't get the amount out as 0 due to the calculation in `getPrice()` function where:
+```
+cost = targetRaise * (newSupply^2 / saleSupply^2)
+```
+> I had to ensure that `targetRaise * newSupply^2` > `saleSupply^2`. This was a simple fix but not the best one, considering the time I had to do this. 
+
 ## Claiming Purchased Tokens
 Once the sale is finalized, users must call claim(address recipient)` to receive their purchased tokens. Instead of giving users the tokens right away we use this method in order to safeguard the protocol from token dumping and premature market creation.
 
