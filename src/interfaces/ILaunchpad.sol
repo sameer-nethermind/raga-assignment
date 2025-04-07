@@ -67,6 +67,7 @@ interface ILaunchpad {
      * @param name_ Token name.
      * @param symbol_ Token symbol.
      * @param beneficiary_ Address of the fundraise beneficiary.
+     * @param uniswapFactory Address of the Uniswap factory for creating pairs.
      * @param uniswapRouter_ Uniswap router address for liquidity provision.
      * @param usdc_ USDC token contract address.
      * @param targetRaise_ Target USDC raise amount (6 decimals).
@@ -75,6 +76,7 @@ interface ILaunchpad {
         string calldata name_,
         string calldata symbol_,
         address beneficiary_,
+        address uniswapFactory,
         address uniswapRouter_,
         IERC20 usdc_,
         uint256 targetRaise_
