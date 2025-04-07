@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.28;
 
+import { ILaunchpad } from "./interfaces/ILaunchpad.sol";
 import { Token } from "./Token.sol";
 import { LaunchpadErrors } from "./LaunchpadErrors.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -13,6 +14,7 @@ import { ReentrancyGuardUpgradeable } from
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract Launchpad is
+    ILaunchpad,
     UUPSUpgradeable,
     OwnableUpgradeable,
     PausableUpgradeable,
@@ -30,25 +32,6 @@ contract Launchpad is
 
     // Storage slot for upgradeable pattern
     bytes32 private constant LAUNCHPAD_STORAGE_SLOT = 0xa44d8294f0e4adb9d0865948bd1fdf37d2de32fe309eb032411521430025c400;
-
-    // Events
-    event LaunchpadInitialized(
-        address indexed token,
-        address indexed beneficiary,
-        address uniswapRouter,
-        uint256 targetRaise,
-        uint256 saleSupply
-    );
-    event TokensPurchased(address indexed buyer, uint256 reserveAmount, uint256 tokenAmount);
-    event SaleFinalized(
-        uint256 totalRaised,
-        uint256 beneficiaryTokens,
-        uint256 beneficiaryUSDC,
-        uint256 liquidityTokens,
-        uint256 liquidityUSDC
-    );
-    event FeeCollected(address indexed recipient, uint256 feeAmount);
-    event Claimed(address indexed recipient, uint256 amount);
 
     /// @custom:storage-location erc7201:Launchpad.storage
     struct LaunchpadStorage {
