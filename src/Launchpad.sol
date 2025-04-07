@@ -323,7 +323,6 @@ contract Launchpad is
         // Mark as finalized
         $.isFinalized = true;
 
-        // Emit finalization event
         emit SaleFinalized(totalRaised, beneficiaryTokens, beneficiaryUSDC, liquidityTokens, liquidityUSDC);
     }
 
@@ -345,6 +344,10 @@ contract Launchpad is
         emit FeeCollected(recipient, fee);
     }
 
+    /**
+     * @notice Claim purchased tokens
+     * @param recipient The address to send the tokens to
+     */
     function claim(address recipient) public {
         LaunchpadStorage storage $ = _getLaunchpadStorage();
 
