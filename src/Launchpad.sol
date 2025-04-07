@@ -2,6 +2,8 @@
 pragma solidity 0.8.28;
 
 import { ILaunchpad } from "./interfaces/ILaunchpad.sol";
+import { IUniswapV2Factory } from "./interfaces/uniswap/IUniswapV2Factory.sol";
+import { IUniswapV2Router } from "./interfaces/uniswap/IUniswapV2Router.sol";
 import { Token } from "./Token.sol";
 import { LaunchpadErrors } from "./LaunchpadErrors.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -47,9 +49,10 @@ contract Launchpad is
         IERC20 USDC;
         address beneficiary;
         address platform;
-        address uniswapRouter;
+        address uniswapFactory;
+        address uniswapV2Router;
         // Purchase tracking
-        mapping(address => uint256) purchases; // Track individual purchases
+        mapping(address => uint256) purchases;
     }
 
     /**
@@ -65,7 +68,7 @@ contract Launchpad is
      * @param name_ Token name
      * @param symbol_ Token symbol
      * @param beneficiary_ Address of the fundraise beneficiary
-     * @param uniswapRouter_ Uniswap router address for liquidity provision
+     * @param uniswapFactory_ Uniswap router address for liquidity provision
      * @param usdc_ USDC token contract address
      * @param targetRaise_ Target amount to raise in USDC (with 6 decimals)
      */
@@ -73,7 +76,8 @@ contract Launchpad is
         string memory name_,
         string memory symbol_,
         address beneficiary_,
-        address uniswapRouter_,
+        address uniswapFactory_,
+        address uniswapV2Router_,
         IERC20 usdc_,
         uint256 targetRaise_
     )
@@ -82,7 +86,7 @@ contract Launchpad is
     {
         // Input validation
         if (beneficiary_ == address(0)) revert InvalidAddress();
-        if (uniswapRouter_ == address(0)) revert InvalidAddress();
+        if (uniswapFactory_ == address(0)) revert InvalidAddress();
         if (address(usdc_) == address(0)) revert InvalidAddress();
         if (targetRaise_ == 0) revert InvalidAmount();
 
@@ -103,10 +107,11 @@ contract Launchpad is
         $.targetRaise = targetRaise_;
         $.saleSupply = Math.mulDiv(TOTAL_SUPPLY, SALE_PERCENTAGE, 100);
         $.beneficiary = beneficiary_;
-        $.uniswapRouter = uniswapRouter_;
+        $.uniswapFactory = uniswapFactory_;
+        $.uniswapV2Router = uniswapV2Router_;
         $.isFinalized = false;
 
-        emit LaunchpadInitialized(address($.token), beneficiary_, uniswapRouter_, targetRaise_, $.saleSupply);
+        emit LaunchpadInitialized(address($.token), beneficiary_, uniswapFactory_, targetRaise_, $.saleSupply);
     }
 
     /**
@@ -312,16 +317,30 @@ contract Launchpad is
         // 2. Transfer USDC to the beneficiary
         $.USDC.transfer($.beneficiary, beneficiaryUSDC);
         // 3. Handle Uniswap liquidity
-        // Approve tokens for Uniswap router
-        $.token.approve($.uniswapRouter, liquidityTokens);
-        $.USDC.approve($.uniswapRouter, liquidityUSDC);
-
-        // TODO: Implement actual Uniswap pool creation
-
+        _createPoolAndAddLiquidity($, liquidityTokens, liquidityUSDC);
         // Mark as finalized
         $.isFinalized = true;
 
         emit SaleFinalized(totalRaised, beneficiaryTokens, beneficiaryUSDC, liquidityTokens, liquidityUSDC);
+    }
+
+    function _createPoolAndAddLiquidity(
+        LaunchpadStorage storage $,
+        uint256 tokenAmount_,
+        uint256 usdcAmount_
+    )
+        internal
+    {
+        // Create a new Uniswap V2 pair
+        address pair = IUniswapV2Factory($.uniswapFactory).createPair(address($.token), address($.USDC));
+        // Approve the Uniswap router to spend the tokens
+        if (pair == address(0)) revert InvalidAddress();
+        $.token.approve($.uniswapFactory, tokenAmount_);
+        $.USDC.approve($.uniswapFactory, usdcAmount_);
+        // Add liquidity to the Uniswap pool
+        IUniswapV2Router($.uniswapV2Router).addLiquidity(
+            address($.token), address($.USDC), tokenAmount_, usdcAmount_, 0, 0, $.beneficiary, block.timestamp
+        );
     }
 
     /**
